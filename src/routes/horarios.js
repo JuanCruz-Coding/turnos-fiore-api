@@ -19,7 +19,7 @@ router.post("/", authMiddleware, async (req, res) => {
   const { fecha, hora } = req.body;
   try {
     const result = await pool.query(
-      "INSERT INTO horarios (fecha, hora) VALUES ($1, $2) RETURNING *",
+      "INSERT INTO horarios (fecha, hora) VALUES ($1::date, $2::time) RETURNING *",
       [fecha, hora]
     );
     res.json(result.rows[0]);
