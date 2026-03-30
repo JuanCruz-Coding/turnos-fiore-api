@@ -38,4 +38,46 @@ router.delete("/:id", authMiddleware, async (req, res) => {
   }
 });
 
+router.post("/generar", authMiddleware, async (req, res) => {
+  const { reglas, desde, hasta } = req.body;
+
+  if (!reglas?.length || !desde || !hasta) {
+    return res.status(400).json({ error: "Faltan datos." });
+  }
+
+  try {
+    const fechaDesde = new Date(desde + "T12:00:00");
+    const fechaHasta = new Date(hasta + "T12:00:00");
+
+    await pool.query("DELETE FROM horarios WHERE disponible = true");
+
+    const horariosNuevos = [];
+    const current = new Date(fechaDesde);
+
+    while (current <= fechaHasta) {
+      const diaSemana = current.getDay();
+
+      for (const regla of reglas) {
+        if (regla.dia === diaSemana) {
+          const fechaStr = current.toISOString().split("T")[0];
+          horariosNuevos.push({ fecha: fechaStr, hora: regla.hora });
+        }
+      }
+      current.setDate(current.getDate() + 1);
+    }
+
+    for (const h of horariosNuevos) {
+      await pool.query(
+        "INSERT INTO horarios (fecha, hora) VALUES ($1::date, $2::time)",
+        [h.fecha, h.hora]
+      );
+    }
+
+    res.json({ mensaje: `Se generaron ${horariosNuevos.length} horarios.`, total: horariosNuevos.length });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Error al generar horarios." });
+  }
+});
+
 module.exports = router;
