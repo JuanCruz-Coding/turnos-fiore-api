@@ -7,6 +7,7 @@ const turnosRoutes = require("./routes/turnos");
 const horariosRoutes = require("./routes/horarios");
 const resenasRoutes = require("./routes/resenas");
 const alumnosRoutes = require("./routes/alumnos");
+const pagosRoutes = require("./routes/pagos");
 
 const app = express();
 
@@ -18,6 +19,7 @@ app.use("/api/turnos", turnosRoutes);
 app.use("/api/horarios", horariosRoutes);
 app.use("/api/resenas", resenasRoutes);
 app.use("/api/alumnos", alumnosRoutes);
+app.use("/api/pagos", pagosRoutes);
 
 app.get("/", (req, res) => {
   res.json({ mensaje: "API Mates con Fiore funcionando" });
