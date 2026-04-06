@@ -31,10 +31,20 @@ router.post("/", async (req, res) => {
   if (!nombre || !texto || !estrellas) {
     return res.status(400).json({ error: "Completá todos los campos." });
   }
+  const estrellasNum = parseInt(estrellas);
+  if (isNaN(estrellasNum) || estrellasNum < 1 || estrellasNum > 5) {
+    return res.status(400).json({ error: "Las estrellas deben ser un número entre 1 y 5." });
+  }
+  if (typeof nombre !== "string" || nombre.length > 100) {
+    return res.status(400).json({ error: "Nombre inválido." });
+  }
+  if (typeof texto !== "string" || texto.length > 1000) {
+    return res.status(400).json({ error: "El texto no puede superar los 1000 caracteres." });
+  }
   try {
     const result = await pool.query(
       "INSERT INTO resenas (nombre, texto, estrellas) VALUES ($1, $2, $3) RETURNING *",
-      [nombre, texto, estrellas]
+      [nombre, texto, estrellasNum]
     );
     res.json(result.rows[0]);
   } catch (err) {

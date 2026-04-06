@@ -1,15 +1,18 @@
 const express = require("express");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
-require("dotenv").config();
 
 const router = express.Router();
 
-const USUARIO = "fiore";
-const PASSWORD_HASH = bcrypt.hashSync("matesconfiore2025", 10);
+const USUARIO = process.env.ADMIN_USUARIO;
+const PASSWORD_HASH = bcrypt.hashSync(process.env.ADMIN_PASSWORD, 10);
 
 router.post("/login", async (req, res) => {
   const { usuario, password } = req.body;
+
+  if (!usuario || !password) {
+    return res.status(400).json({ error: "Credenciales requeridas" });
+  }
 
   if (usuario !== USUARIO) {
     return res.status(401).json({ error: "Credenciales incorrectas" });
