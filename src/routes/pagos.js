@@ -35,7 +35,7 @@ router.post("/crear-preferencia", async (req, res) => {
           pending: `${process.env.FRONTEND_URL}/turnos/pago-pendiente`
         },
         auto_return: "approved",
-        external_reference: String(horario_id),
+        external_reference: `${fecha}_${hora.slice(0, 5)}`,
         notification_url: `${process.env.BACKEND_URL}/api/pagos/webhook`
       }
     });
@@ -57,12 +57,13 @@ router.post("/webhook", async (req, res) => {
       const pagoInfo = await payment.get({ id: data.id });
 
       if (pagoInfo.status === "approved") {
-        const horario_id = parseInt(pagoInfo.external_reference);
-
-        await pool.query(
-          "UPDATE horarios SET disponible = false WHERE id = $1",
-          [horario_id]
-        );
+        const [fecha, hora] = pagoInfo.external_reference.split("_");
+        if (fecha && hora) {
+          await pool.query(
+            "UPDATE turnos SET pago = 'recibido' WHERE fecha = $1 AND hora = $2 AND estado = 'confirmado'",
+            [fecha, hora + ":00"]
+          );
+        }
       }
     } catch (err) {
       console.error("Error en webhook:", err);

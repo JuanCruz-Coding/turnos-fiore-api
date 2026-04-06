@@ -28,6 +28,71 @@ router.post("/", authMiddleware, async (req, res) => {
   }
 });
 
+// Helpers para cálculo de slots
+const toMinutes = t => { const [h, m] = t.split(':'); return +h * 60 + +m; };
+const toTimeStr = m => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}:00`;
+
+router.get("/slots", async (req, res) => {
+  try {
+    const hoy = new Date();
+    const fechaHoy = hoy.toISOString().split("T")[0];
+
+    const ventanaFin = new Date(hoy);
+    ventanaFin.setDate(ventanaFin.getDate() + 28);
+    const fechaFin = ventanaFin.toISOString().split("T")[0];
+
+    const [reglasResult, turnosResult] = await Promise.all([
+      pool.query("SELECT * FROM disponibilidad WHERE activa = true ORDER BY dia_semana, hora_inicio"),
+      pool.query(
+        "SELECT fecha, hora FROM turnos WHERE estado = 'confirmado' AND fecha >= $1 AND fecha <= $2",
+        [fechaHoy, fechaFin]
+      ),
+    ]);
+
+    const reglas = reglasResult.rows;
+
+    // Set de slots ocupados: "YYYY-MM-DD|HH:MM"
+    const ocupados = new Set(
+      turnosResult.rows.map(t => {
+        const fecha = t.fecha.toISOString().split("T")[0];
+        const hora = t.hora.slice(0, 5);
+        return `${fecha}|${hora}`;
+      })
+    );
+
+    const slots = [];
+    const current = new Date(fechaHoy + "T12:00:00");
+    const fin = new Date(fechaFin + "T12:00:00");
+
+    while (current <= fin) {
+      const diaSemana = current.getDay();
+      const fechaStr = current.toISOString().split("T")[0];
+
+      for (const regla of reglas) {
+        if (regla.dia_semana !== diaSemana) continue;
+
+        const inicioMin = toMinutes(regla.hora_inicio);
+        const finMin = toMinutes(regla.hora_fin) - regla.duracion_minutos;
+
+        for (let m = inicioMin; m <= finMin; m += regla.duracion_minutos) {
+          const horaStr = toTimeStr(m);
+          const key = `${fechaStr}|${horaStr.slice(0, 5)}`;
+          if (!ocupados.has(key)) {
+            slots.push({ fecha: fechaStr, hora: horaStr });
+          }
+        }
+      }
+
+      current.setDate(current.getDate() + 1);
+    }
+
+    res.json(slots);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Error al obtener slots disponibles" });
+  }
+});
+
 router.delete("/:id", authMiddleware, async (req, res) => {
   const { id } = req.params;
   try {

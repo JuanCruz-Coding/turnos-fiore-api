@@ -16,6 +16,7 @@ const horariosRoutes = require("./routes/horarios");
 const resenasRoutes = require("./routes/resenas");
 const alumnosRoutes = require("./routes/alumnos");
 const pagosRoutes = require("./routes/pagos");
+const disponibilidadRoutes = require("./routes/disponibilidad");
 
 const app = express();
 
@@ -59,6 +60,7 @@ const limitadorLogin = rateLimit({
 app.use("/api/auth/login", limitadorLogin);
 app.use("/api/turnos", limitadorPublico);
 app.use("/api/resenas", limitadorPublico);
+app.use("/api/horarios/slots", limitadorPublico);
 app.use("/api/pagos/crear-preferencia", limitadorPublico);
 
 app.use("/api/auth", authRoutes);
@@ -67,6 +69,7 @@ app.use("/api/horarios", horariosRoutes);
 app.use("/api/resenas", resenasRoutes);
 app.use("/api/alumnos", alumnosRoutes);
 app.use("/api/pagos", pagosRoutes);
+app.use("/api/disponibilidad", disponibilidadRoutes);
 
 app.get("/", (req, res) => {
   res.json({ mensaje: "API Mates con Fiore funcionando" });

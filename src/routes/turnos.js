@@ -51,29 +51,25 @@ router.get("/stats", authMiddleware, async (req, res) => {
 });
 
 router.post("/", async (req, res) => {
-  const { nombre, email, whatsapp, dni, nivel, horario_id, fecha, hora } = req.body;
+  const { nombre, email, whatsapp, dni, nivel, fecha, hora } = req.body;
 
-  // Validación básica de presencia y tipos
-  if (!nombre || !email || !whatsapp || !dni || !nivel || !horario_id || !fecha || !hora) {
+  if (!nombre || !email || !whatsapp || !dni || !nivel || !fecha || !hora) {
     return res.status(400).json({ error: "Todos los campos son requeridos." });
   }
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     return res.status(400).json({ error: "Email inválido." });
-  }
-  if (isNaN(parseInt(horario_id))) {
-    return res.status(400).json({ error: "horario_id inválido." });
   }
 
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
 
-    // Verificar que el horario existe y está disponible (con lock para evitar race condition)
-    const horario = await client.query(
-      "SELECT * FROM horarios WHERE id = $1 AND disponible = true FOR UPDATE",
-      [parseInt(horario_id)]
+    // Verificar que el slot no esté ya reservado
+    const conflicto = await client.query(
+      "SELECT 1 FROM turnos WHERE fecha = $1 AND hora = $2 AND estado = 'confirmado'",
+      [fecha, hora]
     );
-    if (!horario.rows.length) {
+    if (conflicto.rows.length) {
       await client.query("ROLLBACK");
       return res.status(409).json({ error: "El horario ya no está disponible." });
     }
@@ -99,19 +95,18 @@ router.post("/", async (req, res) => {
 
     const result = await client.query(
       `INSERT INTO turnos (nombre, email, whatsapp, dni, nivel, horario_id, fecha, hora, estado, alumno_id)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'confirmado', $9) RETURNING *`,
-      [nombre, email, whatsapp, dni, nivel, parseInt(horario_id), fecha, hora, alumno_id]
-    );
-
-    await client.query(
-      "UPDATE horarios SET disponible = false WHERE id = $1",
-      [parseInt(horario_id)]
+       VALUES ($1, $2, $3, $4, $5, NULL, $6, $7, 'confirmado', $8) RETURNING *`,
+      [nombre, email, whatsapp, dni, nivel, fecha, hora, alumno_id]
     );
 
     await client.query("COMMIT");
     res.json(result.rows[0]);
   } catch (err) {
     await client.query("ROLLBACK");
+    // Error de constraint único (double-booking concurrente)
+    if (err.code === '23505') {
+      return res.status(409).json({ error: "El horario ya no está disponible." });
+    }
     console.error(err);
     res.status(500).json({ error: "Error al solicitar turno" });
   } finally {
@@ -137,10 +132,6 @@ router.patch("/:id/cancelar", authMiddleware, async (req, res) => {
       "UPDATE turnos SET estado = 'cancelado' WHERE id = $1",
       [id]
     );
-    await pool.query(
-      "UPDATE horarios SET disponible = true WHERE id = (SELECT horario_id FROM turnos WHERE id = $1)",
-      [id]
-    );
     res.json({ mensaje: "Turno cancelado" });
   } catch (err) {
     res.status(500).json({ error: "Error al cancelar turno" });
@@ -163,10 +154,6 @@ router.patch("/:id/reprogramar", authMiddleware, async (req, res) => {
 
     await pool.query(
       "UPDATE turnos SET estado = 'cancelado', reprogramado = true WHERE id = $1",
-      [id]
-    );
-    await pool.query(
-      "UPDATE horarios SET disponible = true WHERE id = (SELECT horario_id FROM turnos WHERE id = $1)",
       [id]
     );
     res.json({ mensaje: "Turno reprogramado — el alumno debe reservar de nuevo." });
