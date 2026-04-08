@@ -42,6 +42,27 @@ router.get("/dni/:dni", authMiddleware, async (req, res) => {
   }
 });
 
+router.delete("/:id", authMiddleware, async (req, res) => {
+  const { id } = req.params;
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    await client.query("DELETE FROM turnos WHERE alumno_id = $1", [id]);
+    const result = await client.query("DELETE FROM alumnos WHERE id = $1 RETURNING *", [id]);
+    if (!result.rows.length) {
+      await client.query("ROLLBACK");
+      return res.status(404).json({ error: "Alumno no encontrado" });
+    }
+    await client.query("COMMIT");
+    res.json({ mensaje: "Alumno eliminado" });
+  } catch (err) {
+    await client.query("ROLLBACK");
+    res.status(500).json({ error: "Error al eliminar alumno" });
+  } finally {
+    client.release();
+  }
+});
+
 router.patch("/:id/notas", authMiddleware, async (req, res) => {
   const { id } = req.params;
   const { notas } = req.body;

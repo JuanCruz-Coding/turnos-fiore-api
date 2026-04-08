@@ -162,6 +162,17 @@ router.patch("/:id/reprogramar", authMiddleware, async (req, res) => {
   }
 });
 
+router.delete("/:id", authMiddleware, async (req, res) => {
+  const { id } = req.params;
+  try {
+    const result = await pool.query("DELETE FROM turnos WHERE id = $1 RETURNING *", [id]);
+    if (!result.rows.length) return res.status(404).json({ error: "Turno no encontrado" });
+    res.json({ mensaje: "Turno eliminado" });
+  } catch (err) {
+    res.status(500).json({ error: "Error al eliminar turno" });
+  }
+});
+
 router.patch("/:id/pago", authMiddleware, async (req, res) => {
   const { id } = req.params;
   const { pago } = req.body;
